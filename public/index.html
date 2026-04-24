@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Node Hierarchy Tool</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: sans-serif; background: #f4f4f4; padding: 40px 20px; }
+    .wrap { max-width: 780px; margin: auto; }
+    h2 { font-size: 22px; margin-bottom: 6px; }
+    p.sub { color: #555; font-size: 13px; margin-bottom: 18px; }
+    textarea {
+      width: 100%; height: 110px; padding: 10px;
+      font-size: 14px; border: 1px solid #ccc;
+      border-radius: 5px; resize: vertical; font-family: monospace;
+    }
+    button {
+      margin-top: 10px; padding: 9px 22px;
+      background: #1a56db; color: #fff;
+      border: none; border-radius: 5px;
+      cursor: pointer; font-size: 14px;
+    }
+    button:hover { background: #1644b0; }
+    #err { color: #c0392b; margin-top: 8px; font-size: 13px; }
+    #out { margin-top: 22px; }
+    .card {
+      background: #fff; border: 1px solid #ddd;
+      border-radius: 6px; padding: 14px 16px;
+      margin-bottom: 12px;
+    }
+    .card h3 { font-size: 14px; font-weight: 600; margin-bottom: 10px; color: #333; }
+    .card p { font-size: 13px; margin-bottom: 4px; }
+    pre {
+      background: #f7f7f7; padding: 10px;
+      border-radius: 4px; font-size: 12px;
+      overflow-x: auto; margin-top: 6px;
+    }
+    .pill {
+      display: inline-block; padding: 2px 9px;
+      border-radius: 12px; font-size: 12px; margin: 2px;
+      background: #e5e7eb; color: #374151;
+    }
+    .red  { background: #fee2e2; color: #991b1b; }
+    .grn  { background: #d1fae5; color: #065f46; }
+    .hrow {
+      border: 1px solid #e5e7eb; border-radius: 5px;
+      padding: 10px 12px; margin-bottom: 8px;
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h2>Node Hierarchy Processor</h2>
+  <p class="sub">Enter edges comma separated: like A->B, A->C, B->D, X->Y, Y->Z, Z->X</p>
+  <textarea id="inp" placeholder="A->B, A->C, B->D, X->Y, Y->Z, Z->X, hello, 1->2"></textarea>
+  <br>
+  <button onclick="go()">Process</button>
+  <div id="err"></div>
+  <div id="out"></div>
+</div>
+
+<script>
+  async function go() {
+    document.getElementById('err').textContent = ''
+    document.getElementById('out').innerHTML = ''
+
+    const raw = document.getElementById('inp').value.trim()
+    if (!raw) { document.getElementById('err').textContent = 'Enter some nodes first.'; return }
+
+    const data = raw.split(',').map(s => s.trim()).filter(Boolean)
+
+    try {
+      const r = await fetch('/bfhl', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data })
+      })
+      if (!r.ok) throw new Error('Server returned ' + r.status)
+      const j = await r.json()
+      render(j)
+    } catch(e) {
+      document.getElementById('err').textContent = 'Error: ' + e.message
+    }
+  }
+
+  function render(d) {
+    const el = document.getElementById('out')
+    let h = ''
+
+    h += `<div class="card">
+      <h3>Identity</h3>
+      <p><strong>User ID:</strong> ${d.user_id}</p>
+      <p><strong>Email:</strong> ${d.email_id}</p>
+      <p><strong>Roll No:</strong> ${d.college_roll_number}</p>
+    </div>`
+
+    h += `<div class="card">
+      <h3>Summary</h3>
+      <p>Trees: <strong>${d.summary.total_trees}</strong> &nbsp; Cycles: <strong>${d.summary.total_cycles}</strong> &nbsp; Largest Tree Root: <strong>${d.summary.largest_tree_root || '—'}</strong></p>
+    </div>`
+
+    h += `<div class="card"><h3>Hierarchies (${d.hierarchies.length})</h3>`
+    for (let item of d.hierarchies) {
+      h += `<div class="hrow">`
+      h += `<p><strong>Root: ${item.root}</strong> `
+      if (item.has_cycle) h += `<span class="pill red">cycle</span>`
+      else h += `<span class="pill grn">depth: ${item.depth}</span>`
+      h += `</p>`
+      if (!item.has_cycle) h += `<pre>${JSON.stringify(item.tree, null, 2)}</pre>`
+      h += `</div>`
+    }
+    h += `</div>`
+
+    if (d.invalid_entries.length) {
+      h += `<div class="card"><h3>Invalid Entries</h3>`
+      d.invalid_entries.forEach(e => h += `<span class="pill red">${e}</span>`)
+      h += `</div>`
+    }
+
+    if (d.duplicate_edges.length) {
+      h += `<div class="card"><h3>Duplicate Edges</h3>`
+      d.duplicate_edges.forEach(e => h += `<span class="pill">${e}</span>`)
+      h += `</div>`
+    }
+
+    el.innerHTML = h
+  }
+</script>
+<footer style="text-align:center; margin-top:40px; color:#999; font-size:12px">
+  Built by Vaibhav Bhardwaj
+</footer>
+</body>
+</html>
